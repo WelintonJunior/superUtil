@@ -1,12 +1,15 @@
 package sucontrollers
 
 import (
-	"strconv"
+	"errors"
 
 	surepository "github.com/WelintonJunior/superUtil/repository"
 	"github.com/WelintonJunior/superUtil/validate"
 	"github.com/gofiber/fiber/v2"
 )
+
+// Bloqueio de payload grande para evitar ataques de negação de serviço (DoS) com corpos de requisição excessivamente grandes.
+const maxRequestBodyBytes = 1 << 20 // 1 MiB
 
 type SuperUtilController[T any] struct {
 	superUtilRepository surepository.SuperUtilRepository[T]
@@ -19,6 +22,15 @@ func NewSuperUtilController[T any](superUtilRepository surepository.SuperUtilRep
 func (c *SuperUtilController[T]) Create() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		var req T
+
+		if err := ensureJSONRequest(ctx); err != nil {
+			fiberErr, ok := err.(*fiber.Error)
+			if ok {
+				return ctx.Status(fiberErr.Code).JSON(fiber.Map{"error": fiberErr.Message})
+			}
+
+			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+		}
 
 		if err := ctx.BodyParser(&req); err != nil {
 			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
@@ -38,14 +50,22 @@ func (c *SuperUtilController[T]) Create() fiber.Handler {
 
 func (c *SuperUtilController[T]) GetByID() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		idParam := ctx.Params("id")
-		id, err := strconv.ParseUint(idParam, 10, 64)
+		id, err := parseIDParam(ctx)
 		if err != nil {
+			fiberErr, ok := err.(*fiber.Error)
+			if ok {
+				return ctx.Status(fiberErr.Code).JSON(fiber.Map{"error": fiberErr.Message})
+			}
+
 			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid id param"})
 		}
 
-		item, err := c.superUtilRepository.GetByID(uint(id))
+		item, err := c.superUtilRepository.GetByID(id)
 		if err != nil {
+			if errors.Is(err, surepository.ErrNotFound) {
+				return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
+			}
+
 			return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve item"})
 		}
 
@@ -68,6 +88,15 @@ func (c *SuperUtilController[T]) Update() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		var req T
 
+		if err := ensureJSONRequest(ctx); err != nil {
+			fiberErr, ok := err.(*fiber.Error)
+			if ok {
+				return ctx.Status(fiberErr.Code).JSON(fiber.Map{"error": fiberErr.Message})
+			}
+
+			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+		}
+
 		if err := ctx.BodyParser(&req); err != nil {
 			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 		}
@@ -86,18 +115,30 @@ func (c *SuperUtilController[T]) Update() fiber.Handler {
 
 func (c *SuperUtilController[T]) DeleteByID() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		idParam := ctx.Params("id")
-		id, err := strconv.ParseUint(idParam, 10, 64)
+		id, err := parseIDParam(ctx)
 		if err != nil {
+			fiberErr, ok := err.(*fiber.Error)
+			if ok {
+				return ctx.Status(fiberErr.Code).JSON(fiber.Map{"error": fiberErr.Message})
+			}
+
 			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid id param"})
 		}
 
-		item, err := c.superUtilRepository.GetByID(uint(id))
+		item, err := c.superUtilRepository.GetByID(id)
 		if err != nil {
+			if errors.Is(err, surepository.ErrNotFound) {
+				return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
+			}
+
 			return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve item"})
 		}
 
-		if err := c.superUtilRepository.DeleteByID(uint(id)); err != nil {
+		if err := c.superUtilRepository.DeleteByID(id); err != nil {
+			if errors.Is(err, surepository.ErrNotFound) {
+				return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
+			}
+
 			return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete item"})
 		}
 

@@ -1,6 +1,12 @@
 package surepository
 
-import "gorm.io/gorm"
+import (
+	"errors"
+
+	"gorm.io/gorm"
+)
+
+var ErrNotFound = errors.New("resource not found")
 
 type SuperUtilRepository[T any] interface {
 	Create(item *T) error
@@ -25,6 +31,10 @@ func (r *superUtilRepository[T]) Create(item *T) error {
 func (r *superUtilRepository[T]) GetByID(id uint) (*T, error) {
 	var item T
 	if err := r.db.First(&item, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+
 		return nil, err
 	}
 	return &item, nil
@@ -48,6 +58,10 @@ func (r *superUtilRepository[T]) Update(item *T) error {
 func (r *superUtilRepository[T]) DeleteByID(id uint) error {
 	var item T
 	if err := r.db.First(&item, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+
 		return err
 	}
 	if err := r.db.Delete(&item).Error; err != nil {
