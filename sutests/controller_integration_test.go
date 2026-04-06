@@ -33,7 +33,7 @@ func TestStructureTest_UsesRealControllerRoutes(t *testing.T) {
 	app.Post("/customers", controller.Create())
 	app.Get("/customers", controller.GetAll())
 	app.Get("/customers/:id", controller.GetByID())
-	app.Put("/customers", controller.Update())
+	app.Put("/customers/:id", controller.Update())
 	app.Delete("/customers/:id", controller.DeleteByID())
 
 	if err := StructureTest[customerEntity](app, "/customers"); err != nil {

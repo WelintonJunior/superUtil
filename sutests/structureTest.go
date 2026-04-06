@@ -139,7 +139,7 @@ func StructureTest[T any](app *fiber.App, baseRoute string) error {
 		return err
 	}
 
-	response, err = app.Test(newJSONRequest(http.MethodPut, baseRoute, updatedBody))
+	response, err = app.Test(newJSONRequest(http.MethodPut, fmt.Sprintf("%s/%d", baseRoute, id), updatedBody))
 	if err != nil {
 		return err
 	}
